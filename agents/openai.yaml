@@ -1,0 +1,4 @@
+interface:
+  display_name: "J-Link RTT"
+  short_description: "Read J-Link RTT logs"
+  default_prompt: "Use $jlink-rtt to read RTT logs from a J-Link target."

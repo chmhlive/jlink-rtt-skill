@@ -1,24 +1,35 @@
 ---
 name: jlink-rtt
-description: Read and validate SEGGER J-Link RTT logs with RTT project config, reset/attach modes, pattern matching, and troubleshooting.
+description: Read SEGGER J-Link RTT logs with RTT project config, reset/attach modes, pattern matching, and troubleshooting.
 ---
 
 # J-Link RTT
 
 ## Quick Path
 
-**Run the script first — do not explore the project, read config files, or check for `.jlink-rtt.env` before running.** The script does all of that internally and tells you exactly what to do next.
+**Run the script first — The script does all and tells you exactly what to do next**
 
 Use `scripts/jlink_rtt.sh`; do not rewrite JLinkGDBServer/GDB/nc orchestration.
 
-Always run from the target project root. Two modes:
-
-**Timed capture** — auto-stop after N seconds, suitable for quick log collection:
+Always run from the target project root. Three modes:
 
 ```bash
 JLINK_RTT_SCRIPT="<loaded-skill-base>/scripts/jlink_rtt.sh"
 RTT_LOG="/tmp/$(basename "$PWD")_rtt.log"
+```
+
+**Timed capture** — auto-stop after N(+3) seconds, suitable for quick log collection:
+
+```bash
 timeout 12 "${JLINK_RTT_SCRIPT}" --out "${RTT_LOG}"   # adjust 12s as needed
+echo "exit=$?"
+echo "log=${RTT_LOG}"
+```
+
+**Pattern-triggered capture** — exit when a specific pattern appears in RTT output:
+
+```bash
+"${JLINK_RTT_SCRIPT}" --out "${RTT_LOG}" --match "Application started" --match-timeout 30
 echo "exit=$?"
 echo "log=${RTT_LOG}"
 ```
@@ -38,5 +49,15 @@ The script handles all pre-flight checks internally. Its output is self-containe
 - Use the loaded skill base path directly; do not list the scripts directory to verify it or guess another install path.
 - When the script exits 0 with `[INFO]` instructions (e.g. no config found), follow the instructions: scan the project for the requested value, ask the user if not found, then run the command it prints.
 - When the script exits non-zero, read the `[ERROR]` + `[INFO]` lines and relay them to the user as the next action.
-- Device names accept fuzzy input (e.g. `nrf52840` → `nRF52840_xxAA`); the script resolves via J-Link database.
 - For all options: `${JLINK_RTT_SCRIPT} --help`
+
+## Device Name Resolution
+
+`--init --device` accepts fuzzy names (e.g. `nrf52840`, `stm32f407`). The script queries the J-Link device database via `JLinkExe ExpDevList` (no hardware needed) and auto-resolves:
+
+- **Unique match** → uses the exact device name (e.g. `nrf52840` → `nRF52840_xxAA`)
+- **Multiple matches** → prints all candidates as `[INFO]` hints, exits non-zero
+- **No match** → prints `[ERROR]` + `[INFO]` with search suggestions
+- **JLinkExe unavailable** → keeps the original name as-is (silent fallback)
+
+Use `--search-device <pattern>` to browse the database interactively.

@@ -202,7 +202,7 @@ resolve_device_name() {
     matches="$(search_devices "${pattern}")" || {
         log_error "No J-Link device matches '${pattern}'."
         log_hint "Try a broader pattern, e.g. 'nrf52' instead of 'nrf52840'."
-        log_hint "Or list all supported devices: ${0} --search-device <pattern>"
+        log_hint "Or confirm the exact name: ${0} --search-device <pattern>"
         return 1
     }
 
@@ -235,10 +235,8 @@ do_init() {
 
     if [[ -z "${DEVICE}" ]]; then
         die "DEVICE is required for --init." \
-            "Scan the project for the DEVICE name (SEGGER device string, e.g. NRF52840_XXAA)." \
-            "If not found, ask the user for the DEVICE name, then run:" \
-            "  ${0} --init --device <DEVICE>" \
-            "Or search the J-Link database with a fuzzy name:" \
+            "Scan the project for the DEVICE name (e.g. NRF52840_XXAA)." \
+            "Use --search-device to confirm the exact name:" \
             "  ${0} --search-device <pattern>"
     fi
 
@@ -250,7 +248,7 @@ do_init() {
     if ((resolve_rc == 1)); then
         # No match found — die with original name.
         die "Device '${original_device}' not found in J-Link database." \
-            "Check the spelling, or search with a broader pattern:" \
+            "Use --search-device to confirm the exact name:" \
             "  ${0} --search-device <pattern>"
     elif ((resolve_rc == 2)); then
         # Multiple matches — hints already printed by resolve_device_name, just die.
@@ -940,8 +938,9 @@ main() {
     # No config and no --device: output actionable instructions for AI.
     if [[ -z "${DEVICE}" ]]; then
         log_info "No .jlink-rtt.env found and no --device given."
-        log_hint "Scan the project for the DEVICE name (SEGGER device string, e.g. NRF52840_XXAA)."
-        log_hint "If not found, ask the user for the DEVICE name, then run:"
+        log_hint "Scan the project for the DEVICE name (e.g. NRF52840_XXAA)."
+        log_hint "Use --search-device to confirm the exact name:"
+        log_hint "  ${0} --search-device <pattern>"
 
         # Auto-detect J-Link serial and build a complete --init command with all params visible.
         detect_serial
@@ -957,26 +956,22 @@ main() {
 
         if [[ -n "${DETECTED_SERIAL}" ]]; then
             init_cmd+=" --serial ${DETECTED_SERIAL}"
-            log_hint "  ${init_cmd}"
         else
             # Check if multiple probes found.
             local probe_count
             probe_count="$(lsusb -v -d 1366: 2>/dev/null | grep -i 'iSerial' | awk '{print $3}' | sort -u | grep -c . || true)" || true
             if ((probe_count > 1)); then
-                log_hint "Multiple J-Link probes detected. Ask the user which serial to use, then run:"
-                log_hint "  ${init_cmd} --serial <SERIAL>"
+                log_hint "Multiple J-Link probes detected. Ask the user which serial to use."
                 log_hint "Available serials:"
                 lsusb -v -d 1366: 2>/dev/null | grep -i 'iSerial' | awk '{print $3}' | sort -u | while read -r s; do
                     log_hint "  ${s}"
                 done
-            else
-                log_hint "  ${init_cmd}"
+                init_cmd+=" --serial <SERIAL>"
             fi
         fi
 
-        log_hint ""
-        log_hint "Or search the J-Link database for the exact device name:"
-        log_hint "  ${0} --search-device <pattern>"
+        log_hint "Then run:"
+        log_hint "  ${init_cmd}"
         log_hint "Review all parameters above before executing. If the project uses a different interface (e.g. JTAG), adjust --if."
         exit 0
     fi

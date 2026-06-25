@@ -31,6 +31,7 @@ dump_debug() {
             "${TMP_DIR}/no_config_serial_output.log" \
             "${TMP_DIR}/no_probe_output.log" \
             "${TMP_DIR}/capture_ok_output.log" \
+            "${TMP_DIR}/match_timeout_output.log" \
             "${TMP_DIR}/stop_output.log"; do
             if [[ -f "${file}" ]]; then
                 printf '\n--- %s ---\n' "${file}" >&2
@@ -152,15 +153,33 @@ OUT_FILE="${TMP_DIR}/captured_rtt.log"
         --match-timeout 3 \
         --out "${OUT_FILE}" \
         > "${OUTPUT_FILE}" 2>&1
-)
+) && pattern_ok=1 || pattern_ok=0
+
+((pattern_ok == 1)) || fail "Pattern-triggered capture did not exit 0."
 
 grep -Fq 'Application started' "${OUTPUT_FILE}" || fail "RTT output was not forwarded."
 grep -Fq 'Application started' "${OUT_FILE}" || fail "RTT output was not saved."
+grep -Fq 'Matched RTT pattern: Application started' "${OUTPUT_FILE}" || fail "Pattern-triggered match message missing."
 grep -Fq -- '-device NRF52840_XXAA' "${TMP_DIR}/jlink_args" || fail "JLink device argument is missing."
 grep -Fq -- '-RTTTelnetPort 39021' "${TMP_DIR}/jlink_args" || fail "RTT port argument is missing."
 grep -Fq -- 'target remote 127.0.0.1:32331' "${TMP_DIR}/gdb_args" || fail "GDB target argument is missing."
 grep -Fq -- 'monitor reset' "${TMP_DIR}/gdb_args" || fail "GDB reset command is missing."
 grep -Fq -- 'monitor go' "${TMP_DIR}/gdb_args" || fail "GDB resume command is missing."
+
+# --- pattern-triggered timeout ---
+MATCH_TIMEOUT_OUT="${TMP_DIR}/match_timeout_output.log"
+(
+    cd "${TMP_DIR}/project/subdir"
+    JLINK_RTT_TEST_TMP="${TMP_DIR}" \
+    PATH="${TMP_DIR}/bin:${PATH}" \
+    "${SCRIPT_DIR}/jlink_rtt.sh" \
+        --project-root "${TMP_DIR}/project" \
+        --match "NONEXISTENT_PATTERN" \
+        --match-timeout 2 \
+        > "${MATCH_TIMEOUT_OUT}" 2>&1
+) && fail "Pattern-triggered timeout should exit non-zero." || true
+
+grep -Fq 'Timed out waiting for RTT pattern' "${MATCH_TIMEOUT_OUT}" || fail "Pattern-triggered timeout message missing."
 
 PRINT_CONFIG="${TMP_DIR}/print_config.log"
 (

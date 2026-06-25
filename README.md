@@ -10,51 +10,52 @@ JLINK_RTT_SCRIPT="./scripts/jlink_rtt.sh"
 RTT_LOG="/tmp/$(basename "$PWD")_rtt.log"
 timeout 12 "${JLINK_RTT_SCRIPT}" --out "${RTT_LOG}"
 
+# Pattern-triggered capture (exit when pattern found)
+"${JLINK_RTT_SCRIPT}" --out "${RTT_LOG}" --match "Application started" --match-timeout 30
+
 # Continuous stream
 "${JLINK_RTT_SCRIPT}" --out "${RTT_LOG}" &
 # ... observe or interact with the device ...
 "${JLINK_RTT_SCRIPT}" --stop
 ```
 
-## Commands
+## Script Hints
 
-| Command | Description |
-|---------|-------------|
-| `jlink_rtt.sh` | Reset, resume, stream RTT |
-| `jlink_rtt.sh --no-reset` | Attach without reset |
-| `jlink_rtt.sh --no-resume` | Do not issue GDB reset/go |
-| `jlink_rtt.sh --init --device NRF52840_XXAA` | Create `.jlink-rtt.env` |
-| `jlink_rtt.sh --match "Application started" --match-timeout 30` | Exit after pattern found |
-| `jlink_rtt.sh --stop` | Stop running RTT session |
-| `jlink_rtt.sh --print-config` | Print resolved config |
-| `jlink_rtt_no_hardware_test.sh` | Run self-test (no hardware required) |
+The script outputs `[ERROR]` + `[INFO]` hints for different scenarios. Follow them directly.
 
-## Options
+**No config and no device:**
+```
+[INFO] No .jlink-rtt.env found and no --device given.
+[INFO] Scan the project for the DEVICE name (e.g. NRF52840_XXAA).
+[INFO] Use --search-device to confirm the exact name:
+[INFO]   ./scripts/jlink_rtt.sh --search-device <pattern>
+[INFO] Then run:
+[INFO]   ./scripts/jlink_rtt.sh --init --device <DEVICE> --if SWD --speed 4000 ...
+```
 
-| Option | Description |
-|--------|-------------|
-| `--config FILE` | Load explicit `.jlink-rtt.env` file |
-| `--project-root DIR` | Limit config search to this project root |
-| `--init` | Create `.jlink-rtt.env` with current settings |
-| `--device DEVICE` | J-Link target device (e.g. NRF52840_XXAA) |
-| `--if INTERFACE` | J-Link interface, default: SWD |
-| `--speed KHZ` | J-Link speed in kHz, default: 4000 |
-| `--serial SERIAL` | J-Link serial number |
-| `--host HOST` | Local host for GDB/RTT ports, default: 127.0.0.1 |
-| `--gdb-port PORT` | GDB server port, default: 2331 |
-| `--rtt-port PORT` | RTT telnet port, default: 19021 |
-| `--timeout SECONDS` | Port ready timeout, default: 10 |
-| `--log FILE` | JLinkGDBServer log file |
-| `--gdb-log FILE` | GDB resume log file |
-| `--out FILE` | Save RTT output to file while streaming |
-| `--match PATTERN` | Exit 0 after this fixed text appears in RTT output |
-| `--match-timeout SEC` | Timeout for `--match`, default: 30 |
-| `--no-reset` | Do not reset the target before reading RTT |
-| `--no-resume` | Do not connect GDB to resume the target |
-| `--stop` | Kill JLinkGDBServer for current project |
-| `--jlink-gdb-server CMD` | Override auto-detected JLinkGDBServer |
-| `--gdb CMD` | Override auto-detected GDB |
-| `--nc CMD` | Override auto-detected nc |
+**No device matches:**
+```
+[ERROR] No J-Link device matches 'nrf52840'.
+[INFO] Try a broader pattern, e.g. 'nrf52' instead of 'nrf52840'.
+[INFO] Or confirm the exact name: ./scripts/jlink_rtt.sh --search-device <pattern>
+```
+
+**Multiple matches:**
+```
+[ERROR] Multiple J-Link devices match 'stm32f407' (6 found).
+[INFO] Pick the correct device from the list below and re-run with --device <EXACT_NAME>:
+[INFO]   ST | STM32F407IG
+[INFO]   ST | STM32F407VG
+[INFO]   ...
+```
+
+**Pattern-triggered timeout:**
+```
+[ERROR] Timed out waiting for RTT pattern after 30s: Application started
+[INFO] Check the RTT output above for what was captured.
+[INFO] Or extend the timeout: --match-timeout 60
+[INFO] Or re-run without --match and without timeout to stream continuously, stop with SIGINT.
+```
 
 ## Requirements
 

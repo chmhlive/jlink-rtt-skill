@@ -39,8 +39,8 @@ echo "log=${RTT_LOG}"
 **Start:**
 ```bash
 "${JLINK_RTT_SCRIPT}" --out "${RTT_LOG}" &
-# ... observe or interact with the device ...
-cat "${RTT_LOG}"  # read log (or use read file tools, repeat as needed)
+# read log periodically to observe output
+cat "${RTT_LOG}"  # or use read file tools, repeat as needed
 ```
 
 **Stop:**

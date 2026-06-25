@@ -36,10 +36,16 @@ echo "log=${RTT_LOG}"
 
 **Continuous stream** — no timeout, runs until stopped. Stop by running `--stop` from another shell:
 
+**Start:**
 ```bash
-"${JLINK_RTT_SCRIPT}" --out "${RTT_LOG}" &    # start streaming
+"${JLINK_RTT_SCRIPT}" --out "${RTT_LOG}" &
 # ... observe or interact with the device ...
-"${JLINK_RTT_SCRIPT}" --stop                   # kill JLinkGDBServer → nc exits cleanly
+cat "${RTT_LOG}"  # read log (or use read file tools)
+```
+
+**Stop:**
+```bash
+"${JLINK_RTT_SCRIPT}" --stop
 echo "log=${RTT_LOG}"
 ```
 

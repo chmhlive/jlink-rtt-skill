@@ -58,9 +58,42 @@ timeout 12 "${JLINK_RTT_SCRIPT}" --out "${RTT_LOG}"
 
 ## Requirements
 
-- SEGGER J-Link tools (`JLinkGDBServer`)
-- GDB (`gdb-multiarch`, `arm-none-eabi-gdb`, or `gdb`)
-- `nc` (netcat)
+### Runtime Environment
+
+- **OS**: Linux (tested on Ubuntu 20.04+), macOS (untested but should work with compatible tools)
+- **Shell**: Bash 4.0+
+- **Hardware**: SEGGER J-Link debug probe connected via USB (required for real capture; self-test runs without hardware)
+
+### Dependencies
+
+| Tool | Required | Auto-detected candidates |
+|------|----------|--------------------------|
+| `JLinkGDBServer` | Yes | `JLinkGDBServer`, `JLinkGDBServerCLExe` |
+| `gdb` | Yes (for reset/resume) | `gdb-multiarch`, `arm-none-eabi-gdb`, `gdb` |
+| `nc` (netcat) | Yes | `nc`, `ncat` |
+| `lsusb` | Optional (for USB detection) | system default |
+
+Install SEGGER J-Link Software from [SEGGER Downloads](https://www.segger.com/downloads/jlink/).
+
+For ARM embedded targets, install the ARM toolchain:
+
+```bash
+# Ubuntu/Debian
+sudo apt install gdb-multiarch netcat-openbsd
+
+# macOS
+brew install arm-none-eabi-gdb netcat
+```
+
+### Project Config
+
+Create a `.jlink-rtt.env` in your project root:
+
+```bash
+./scripts/jlink_rtt.sh --init --device NRF52840_XXAA
+```
+
+This generates a config file with default ports and settings. The script auto-discovers `.jlink-rtt.env` by searching upward from the current directory (within the git worktree or `--project-root`).
 
 ## License
 

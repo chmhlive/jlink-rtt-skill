@@ -27,6 +27,7 @@ CONFIG_FILE=""
 PRINT_CONFIG=0
 INIT_MODE=0
 RTT_STOP=0
+SEARCH_DEVICE=""
 
 gdb_srv_pid=""
 config_loaded=""
@@ -59,6 +60,7 @@ Options:
   --no-reset             Do not reset the target before reading RTT
   --no-resume            Do not connect GDB to resume the target
   --stop                 Stop a running RTT session (kills JLinkGDBServer, triggers clean shutdown)
+  --search-device PATTERN Search J-Link device database for PATTERN (case-insensitive substring match)
   -h, --help             Show this help
 
 Config search:
@@ -101,6 +103,133 @@ detect_serial() {
     fi
 }
 
+# ── J-Link device database lookup ────────────────────────────────────────────
+# Uses JLinkExe ExpDevList to export the full device list (no hardware needed).
+# Results are cached by J-Link version to avoid repeated exports.
+
+get_jlink_version() {
+    if ! command -v JLinkExe >/dev/null 2>&1; then
+        return 1
+    fi
+    JLinkExe -NoGui 1 -ExitOnError 1 -CommandFile /dev/null 2>&1 | head -1 | grep -oP 'V\d+[^\s]*' || true
+}
+
+get_device_cache() {
+    local jlink_ver cache_file
+
+    if ! command -v JLinkExe >/dev/null 2>&1; then
+        die "JLinkExe is required to query the device database." \
+            "Install SEGGER J-Link Software and add to PATH:" \
+            "  https://www.segger.com/downloads/jlink/"
+    fi
+
+    jlink_ver="$(get_jlink_version)"
+    if [[ -z "${jlink_ver}" ]]; then
+        return 1
+    fi
+    cache_file="/tmp/jlink_devices_${jlink_ver}.csv"
+    if [[ -f "${cache_file}" ]]; then
+        printf '%s\n' "${cache_file}"
+        return 0
+    fi
+
+    # Export fresh device list.
+    local tmp_script
+    tmp_script="$(mktemp /tmp/jlink_devlist_script.XXXXXX)"
+    printf 'ExpDevList %s\nExit\n' "${cache_file}" > "${tmp_script}"
+    if JLinkExe -NoGui 1 -ExitOnError 1 -CommandFile "${tmp_script}" >/dev/null 2>&1; then
+        rm -f "${tmp_script}"
+        if [[ -f "${cache_file}" ]]; then
+            printf '%s\n' "${cache_file}"
+            return 0
+        fi
+    fi
+    rm -f "${tmp_script}"
+    return 1
+}
+
+# Search device database for PATTERN (case-insensitive substring).
+# Output: one line per match: "Vendor | Device"
+# Sorted by match quality: exact > prefix > contains.
+search_devices() {
+    local pattern="$1"
+    local cache_file matches
+
+    cache_file="$(get_device_cache)" || {
+        log_warn "Cannot access J-Link device database. Is JLinkExe installed?"
+        return 1
+    }
+
+    # Parse CSV: "Vendor", "Device", "Core", ...
+    # Use awk to extract Vendor and Device, filter by pattern.
+    matches="$(awk -F '", "' -v pat="${pattern,,}" '
+        NR == 1 { next }
+        {
+            vendor = substr($1, 2)           # strip leading "
+            device = $2
+            gsub(/^[[:space:]]+|[[:space:]]+$/, "", device)
+            dev_lower = tolower(device)
+            if (dev_lower == pat) {
+                printf "= %s | %s\n", vendor, device
+            } else if (index(dev_lower, pat) == 1) {
+                printf "> %s | %s\n", vendor, device
+            } else if (index(dev_lower, pat) > 0) {
+                printf ". %s | %s\n", vendor, device
+            }
+        }
+    ' "${cache_file}" | sort -t'|' -k2 | sort -s -t' ' -k1,1)"
+
+    if [[ -z "${matches}" ]]; then
+        return 1
+    fi
+    printf '%s\n' "${matches}"
+}
+
+# Resolve a fuzzy device name to an exact J-Link device string.
+# Returns: 0 = unique match (DEVICE set), 1 = no match, 2 = multiple matches.
+# On multiple matches, prints candidates to stderr as [INFO] hints.
+resolve_device_name() {
+    local pattern="$1"
+    local matches match_count
+
+    # JLinkExe is required for device name resolution.
+    if ! command -v JLinkExe >/dev/null 2>&1; then
+        die "JLinkExe is required for device name resolution." \
+            "Install SEGGER J-Link Software and add to PATH:" \
+            "  https://www.segger.com/downloads/jlink/"
+    fi
+
+    matches="$(search_devices "${pattern}")" || {
+        log_error "No J-Link device matches '${pattern}'."
+        log_hint "Try a broader pattern, e.g. 'nrf52' instead of 'nrf52840'."
+        log_hint "Or list all supported devices: ${0} --search-device <pattern>"
+        return 1
+    }
+
+    # Strip sort prefix for counting.
+    local stripped
+    stripped="$(printf '%s\n' "${matches}" | sed 's/^[=>.] //')"
+    match_count="$(printf '%s\n' "${stripped}" | grep -c .)"
+
+    if ((match_count == 1)); then
+        # Unique match: extract device name.
+        DEVICE="$(printf '%s\n' "${stripped}" | awk -F' \\| ' '{print $2}')"
+        log_info "Resolved device: ${DEVICE} ($(printf '%s\n' "${stripped}" | awk -F' \\| ' '{print $1}'))"
+        return 0
+    fi
+
+    # Multiple matches: print candidates.
+    log_error "Multiple J-Link devices match '${pattern}' (${match_count} found)."
+    log_hint "Pick the correct device from the list below and re-run with --device <EXACT_NAME>:"
+    local line
+    while IFS= read -r line; do
+        log_hint "  ${line}"
+    done <<< "${stripped}"
+    log_hint ""
+    log_hint "Example: ${0} --init --device <EXACT_NAME>"
+    return 2
+}
+
 do_init() {
     local file="$1"
 
@@ -108,8 +237,26 @@ do_init() {
         die "DEVICE is required for --init." \
             "Scan the project for the DEVICE name (SEGGER device string, e.g. NRF52840_XXAA)." \
             "If not found, ask the user for the DEVICE name, then run:" \
-            "  ${0} --init --device <DEVICE>"
+            "  ${0} --init --device <DEVICE>" \
+            "Or search the J-Link database with a fuzzy name:" \
+            "  ${0} --search-device <pattern>"
     fi
+
+    # Try to resolve fuzzy device name against J-Link database.
+    local original_device="${DEVICE}"
+    local resolve_rc=0
+    resolve_device_name "${DEVICE}" || resolve_rc=$?
+
+    if ((resolve_rc == 1)); then
+        # No match found — die with original name.
+        die "Device '${original_device}' not found in J-Link database." \
+            "Check the spelling, or search with a broader pattern:" \
+            "  ${0} --search-device <pattern>"
+    elif ((resolve_rc == 2)); then
+        # Multiple matches — hints already printed by resolve_device_name, just die.
+        exit 1
+    fi
+    # resolve_rc == 0: DEVICE is now set to the exact match.
 
     if [[ -f "${file}" ]]; then
         die "Config file already exists: ${file}" \
@@ -395,6 +542,11 @@ parse_args() {
         --stop)
             RTT_STOP=1
             shift
+            ;;
+        --search-device)
+            require_value "$1" "${2:-}"
+            SEARCH_DEVICE="$2"
+            shift 2
             ;;
         -h | --help)
             usage
@@ -747,6 +899,16 @@ main() {
 
     parse_args "$@"
 
+    # --search-device: query J-Link device database and exit.
+    if [[ -n "${SEARCH_DEVICE}" ]]; then
+        if ! search_devices "${SEARCH_DEVICE}"; then
+            log_info "No J-Link devices match '${SEARCH_DEVICE}'."
+            log_hint "Try a broader pattern, e.g. 'nrf52' instead of 'nrf52840'."
+            exit 1
+        fi
+        exit 0
+    fi
+
     # --init mode: write config and exit.
     if ((INIT_MODE != 0)); then
         if [[ -z "${CONFIG_FILE}" ]]; then
@@ -812,6 +974,9 @@ main() {
             fi
         fi
 
+        log_hint ""
+        log_hint "Or search the J-Link database for the exact device name:"
+        log_hint "  ${0} --search-device <pattern>"
         log_hint "Review all parameters above before executing. If the project uses a different interface (e.g. JTAG), adjust --if."
         exit 0
     fi

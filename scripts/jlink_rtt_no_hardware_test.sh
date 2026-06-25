@@ -93,6 +93,40 @@ EOF
 
 chmod +x "${TMP_DIR}/bin/JLinkGDBServer" "${TMP_DIR}/bin/gdb-multiarch" "${TMP_DIR}/bin/nc"
 
+# Fake JLinkExe for device database resolution (used by --init fuzzy matching).
+cat > "${TMP_DIR}/bin/JLinkExe" <<'JLEOF'
+#!/usr/bin/env bash
+set -Eeuo pipefail
+if [[ "${1:-}" == "-NoGui" ]]; then
+    printf 'SEGGER J-Link Commander V9.99a (Compiled Jan 1 2026 00:00:00)\n'
+    if [[ "${*}" == *"/dev/null"* ]]; then
+        exit 0
+    fi
+    # Parse -CommandFile to find the script, then extract ExpDevList target path.
+    cmd_file=""
+    for arg in "$@"; do
+        if [[ "${arg}" == "-CommandFile" ]]; then continue; fi
+        if [[ -f "${arg}" ]]; then cmd_file="${arg}"; break; fi
+    done
+    if [[ -n "${cmd_file}" ]]; then
+        csv_path="$(sed -n 's/^ExpDevList[[:space:]]\+//p' "${cmd_file}" | head -1)"
+        if [[ -n "${csv_path}" ]]; then
+            cat > "${csv_path}" <<CSV
+"Manufacturer", "Device", "Core", {Flash areas}, {RAM areas}
+"Nordic Semi", "nRF52840_xxAA", "Cortex-M4", { {0x00000000, 0x00100000} }, {0x20000000, 0x00040000}
+"Nordic Semi", "nRF52833_xxAA", "Cortex-M4", { {0x00000000, 0x00080000} }, {0x20000000, 0x00020000}
+"Nordic Semi", "nRF52832_xxAA", "Cortex-M4", { {0x00000000, 0x00080000} }, {0x20000000, 0x00010000}
+"ST", "STM32F407IG", "Cortex-M4", { {0x08000000, 0x00100000} }, {0x20000000, 0x00020000}
+"ST", "STM32F407VG", "Cortex-M4", { {0x08000000, 0x00100000} }, {0x20000000, 0x00020000}
+"ST", "STM32F407ZE", "Cortex-M4", { {0x08000000, 0x00080000} }, {0x20000000, 0x00020000}
+CSV
+        fi
+    fi
+fi
+exit 0
+JLEOF
+chmod +x "${TMP_DIR}/bin/JLinkExe"
+
 cat > "${TMP_DIR}/project/.jlink-rtt.env" <<EOF
 DEVICE=NRF52840_XXAA
 JLINK_IF=SWD
@@ -194,7 +228,7 @@ INIT_OUT="${TMP_DIR}/init_output.log"
         > "${INIT_OUT}" 2>&1
 )
 
-grep -Fq 'DEVICE=NRF52840_XXAA' "${INIT_CONFIG}" || fail "--init did not write DEVICE."
+grep -Fq 'DEVICE=nRF52840_xxAA' "${INIT_CONFIG}" || fail "--init did not write DEVICE."
 grep -Fq 'JLINK_IF=SWD' "${INIT_CONFIG}" || fail "--init did not write JLINK_IF."
 grep -Fq 'SPEED=4000' "${INIT_CONFIG}" || fail "--init did not write SPEED."
 grep -Fq 'Created config:' "${INIT_OUT}" || fail "--init did not print config created message."

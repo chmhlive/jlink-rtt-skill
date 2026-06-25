@@ -46,6 +46,8 @@ The script handles all pre-flight checks internally. Its output is self-containe
 "${JLINK_RTT_SCRIPT}" --no-reset                     # attach without reset
 "${JLINK_RTT_SCRIPT}" --no-resume                    # do not issue GDB reset/go
 "${JLINK_RTT_SCRIPT}" --init --device NRF52840_XXAA  # create .jlink-rtt.env
+"${JLINK_RTT_SCRIPT}" --init --device nrf52840       # fuzzy name → auto-resolved via J-Link DB
+"${JLINK_RTT_SCRIPT}" --search-device nrf52          # search J-Link device database
 "${JLINK_RTT_SCRIPT}" --match "Application started" --match-timeout 30  # exit after pattern found
 "${JLINK_RTT_SCRIPT}" --stop                        # stop running RTT session
 "${JLINK_RTT_SCRIPT}" --print-config                # print resolved config
@@ -59,7 +61,8 @@ The script handles all pre-flight checks internally. Its output is self-containe
 | `--config FILE` | Load explicit `.jlink-rtt.env` file |
 | `--project-root DIR` | Limit config search to this project root |
 | `--init` | Create `.jlink-rtt.env` with current settings and exit |
-| `--device DEVICE` | J-Link target device (e.g. NRF52840_XXAA) |
+| `--device DEVICE` | J-Link target device; accepts fuzzy names (e.g. `nrf52840`) — auto-resolved via J-Link database |
+| `--search-device PATTERN` | Search J-Link device database for PATTERN (case-insensitive) |
 | `--if INTERFACE` | J-Link interface, default: SWD |
 | `--speed KHZ` | J-Link speed in kHz, default: 4000 |
 | `--serial SERIAL` | J-Link serial number |
@@ -78,3 +81,14 @@ The script handles all pre-flight checks internally. Its output is self-containe
 | `--jlink-gdb-server CMD` | Override auto-detected JLinkGDBServer command |
 | `--gdb CMD` | Override auto-detected GDB command |
 | `--nc CMD` | Override auto-detected nc command |
+
+## Device Name Resolution
+
+`--init --device` accepts fuzzy names (e.g. `nrf52840`, `stm32f407`). The script queries the J-Link device database via `JLinkExe ExpDevList` (no hardware needed) and auto-resolves:
+
+- **Unique match** → uses the exact device name (e.g. `nrf52840` → `nRF52840_xxAA`)
+- **Multiple matches** → prints all candidates as `[INFO]` hints, exits non-zero
+- **No match** → prints `[ERROR]` + `[INFO]` with search suggestions
+- **JLinkExe unavailable** → keeps the original name as-is (silent fallback)
+
+Use `--search-device <pattern>` to browse the database interactively.

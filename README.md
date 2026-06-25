@@ -57,6 +57,34 @@ The script outputs `[ERROR]` + `[INFO]` hints for different scenarios. Follow th
 [INFO] Or re-run without --match and without timeout to stream continuously, stop with SIGINT.
 ```
 
+## Options
+
+| Option | Description |
+|--------|-------------|
+| `--config FILE` | Load explicit `.jlink-rtt.env` file |
+| `--project-root DIR` | Limit config search to this project root |
+| `--init` | Create `.jlink-rtt.env` with current settings |
+| `--device DEVICE` | J-Link target device; accepts fuzzy names (e.g. `nrf52840`) |
+| `--search-device PATTERN` | Search J-Link device database for PATTERN |
+| `--if INTERFACE` | J-Link interface, default: SWD |
+| `--speed KHZ` | J-Link speed in kHz, default: 4000 |
+| `--serial SERIAL` | J-Link serial number |
+| `--host HOST` | Local host for GDB/RTT ports, default: 127.0.0.1 |
+| `--gdb-port PORT` | GDB server port, default: 2331 |
+| `--rtt-port PORT` | RTT telnet port, default: 19021 |
+| `--timeout SECONDS` | Port ready timeout, default: 10 |
+| `--log FILE` | JLinkGDBServer log file |
+| `--gdb-log FILE` | GDB resume log file |
+| `--out FILE` | Save RTT output to file while streaming |
+| `--match PATTERN` | Exit 0 after this fixed text appears in RTT output |
+| `--match-timeout SEC` | Timeout for `--match`, default: 30 |
+| `--no-reset` | Do not reset the target before reading RTT |
+| `--no-resume` | Do not connect GDB to resume the target |
+| `--stop` | Kill JLinkGDBServer for current project |
+| `--jlink-gdb-server CMD` | Override auto-detected JLinkGDBServer |
+| `--gdb CMD` | Override auto-detected GDB |
+| `--nc CMD` | Override auto-detected nc |
+
 ## Requirements
 
 ### Runtime Environment

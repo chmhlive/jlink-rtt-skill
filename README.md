@@ -100,20 +100,20 @@ The script outputs `[ERROR]` + `[INFO]` hints for different scenarios. Follow th
 | Tool | Required | Auto-detected candidates |
 |------|----------|--------------------------|
 | `JLinkGDBServer` | Yes | `JLinkGDBServer`, `JLinkGDBServerCLExe` |
-| `gdb` | Yes (for reset/resume) | `gdb-multiarch`, `arm-none-eabi-gdb`, `gdb` |
+| `JLinkExe` / `JLink.exe` | Yes (for reset/resume) | `JLinkExe`, `JLink.exe` |
 | `nc` (netcat) | Yes | `nc`, `ncat` |
 | `lsusb` | Optional (for USB detection) | system default |
 
 Install SEGGER J-Link Software from [SEGGER Downloads](https://www.segger.com/downloads/jlink/).
 
-For ARM embedded targets, install the ARM toolchain:
+For host system packages, you only need tool utilities like netcat:
 
 ```bash
 # Ubuntu/Debian
-sudo apt install gdb-multiarch netcat-openbsd
+sudo apt install netcat-openbsd
 
 # macOS
-brew install arm-none-eabi-gdb netcat
+brew install netcat
 ```
 
 ### Project Config

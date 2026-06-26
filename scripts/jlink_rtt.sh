@@ -621,7 +621,6 @@ find_first_command() {
 # --print-config remains usable on machines without J-Link/GDB/nc installed.
 detect_tools() {
     find_first_command JLINK_GDB_SERVER JLinkGDBServer JLinkGDBServerCLExe
-    find_first_command GDB gdb-multiarch arm-none-eabi-gdb gdb
     find_first_command NC nc ncat
 }
 
@@ -733,34 +732,47 @@ resume_target() {
         return 0
     fi
 
-    local -a gdb_args=(
-        -batch
-        -ex "set confirm off"
-        -ex "target remote ${HOST}:${GDB_PORT}"
-    )
+    local tmp_script
+    tmp_script="$(mktemp /tmp/jlink_reset.XXXXXX)"
 
     if ((RESET_TARGET != 0)); then
-        log_info "Resetting and resuming target through GDB."
-        gdb_args+=(-ex "monitor reset")
+        log_info "Resetting and resuming target through J-Link Commander."
+        printf 'r\ng\nq\n' > "${tmp_script}"
     else
-        log_info "Resuming target through GDB."
+        log_info "Resuming target through J-Link Commander."
+        printf 'g\nq\n' > "${tmp_script}"
     fi
 
-    gdb_args+=(
-        -ex "monitor go"
-        -ex "detach"
-        -ex "quit"
+    local -a jlink_args=(
+        -device "${DEVICE}"
+        -if "${JLINK_IF}"
+        -speed "${SPEED}"
+        -NoGui 1
+        -ExitOnError 1
+        -CommanderScript "${tmp_script}"
     )
 
-    if ! "${GDB}" "${gdb_args[@]}" > "${GDB_LOG_FILE}" 2>&1; then
+    if [[ -n "${JLINK_SERIAL}" ]]; then
+        jlink_args+=(-SelectEmuBySN "${JLINK_SERIAL}")
+    fi
+
+    local cmd_name="JLinkExe"
+    if [[ "${OSTYPE}" == "msys" || "${OSTYPE}" == "cygwin" || "${OSTYPE}" == "win32" ]]; then
+        cmd_name="JLink.exe"
+    fi
+
+    if ! "${cmd_name}" "${jlink_args[@]}" > "${GDB_LOG_FILE}" 2>&1; then
+        rm -f "${tmp_script}"
         if [[ -s "${GDB_LOG_FILE}" ]]; then
-            log_error "GDB resume log:"
+            log_error "J-Link Commander resume log:"
             sed -n '1,160p' "${GDB_LOG_FILE}" >&2
         fi
-        die "Failed to resume target through GDB." \
-            "Check the GDB resume log above." \
+        die "Failed to resume target through J-Link Commander." \
+            "Check the resume log above." \
             "Or skip resume: --no-resume"
     fi
+
+    rm -f "${tmp_script}"
 }
 
 handle_rtt_line() {

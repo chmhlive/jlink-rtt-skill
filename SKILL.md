@@ -9,7 +9,7 @@ description: Read SEGGER J-Link RTT logs with RTT project config, reset/attach m
 
 **Run the script first — The script does all and tells you exactly what to do next**
 
-Use `scripts/jlink_rtt.sh`; do not rewrite JLinkGDBServer/GDB/nc orchestration.
+Use `scripts/jlink_rtt.sh`; do not rewrite JLinkGDBServer/JLinkExe/nc orchestration.
 
 - **AI Tip**: When observing `RTT_LOG`, prefer using your own read/grep/search tools to inspect, filter or browse the log. Do not simply `cat` the entire file to avoid token overflow.
 

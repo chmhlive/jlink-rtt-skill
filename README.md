@@ -13,9 +13,11 @@ timeout 12 "${JLINK_RTT_SCRIPT}" --out "${RTT_LOG}"
 # Pattern-triggered capture (exit when pattern found)
 "${JLINK_RTT_SCRIPT}" --out "${RTT_LOG}" --match "Application started" --match-timeout 30
 
-# Continuous stream
-"${JLINK_RTT_SCRIPT}" --out "${RTT_LOG}" &
-# ... observe or interact with the device ...
+# Continuous stream (AI-Friendly & Non-blocking)
+( "${JLINK_RTT_SCRIPT}" --out "${RTT_LOG}" > "/tmp/jlink_rtt_startup.log" 2>&1 & )
+sleep 1
+cat "/tmp/jlink_rtt_startup.log"  # Verify if it started successfully
+# ... observe or interact with the device (AI: use read/grep/search tools to check RTT_LOG) ...
 "${JLINK_RTT_SCRIPT}" --stop
 ```
 

@@ -11,6 +11,8 @@ description: Read SEGGER J-Link RTT logs with RTT project config, reset/attach m
 
 Use `scripts/jlink_rtt.sh`; do not rewrite JLinkGDBServer/GDB/nc orchestration.
 
+- **AI Tip**: When observing `RTT_LOG`, prefer using your own read/grep/search tools to inspect, filter or browse the log. Do not simply `cat` the entire file to avoid token overflow.
+
 Always run from the target project root. Three modes:
 
 ```bash
@@ -36,11 +38,17 @@ echo "log=${RTT_LOG}"
 
 **Continuous stream** — no timeout, runs until stopped. Stop by running `--stop` from another shell:
 
-**Start:**
+**Start (AI-Friendly & Non-blocking):**
 ```bash
-"${JLINK_RTT_SCRIPT}" --out "${RTT_LOG}" &
-# read log periodically to observe output
-cat "${RTT_LOG}"  # or use read file tools, repeat as needed
+# Start in background via double-fork to prevent hanging, write logs to startup.log
+( "\${JLINK_RTT_SCRIPT}" --out "\${RTT_LOG}" > "/tmp/jlink_rtt_startup.log" 2>&1 & )
+
+# Wait 1s and print startup log to verify if it started successfully (e.g. catch uninitialized config errors)
+sleep 1
+cat "/tmp/jlink_rtt_startup.log"
+
+# Read RTT_LOG periodically to observe output
+echo "\${RTT_LOG}"  # or use read file tools, repeat as needed
 ```
 
 **Stop:**
